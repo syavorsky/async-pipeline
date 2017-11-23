@@ -3,11 +3,17 @@ const {EventEmitter} = require('events')
 const $ee = Symbol()
 const $routes = Symbol()
 const $ended = Symbol()
+const $startedAt = Symbol()
 
 const noop = () => {}
 
-function trace(routes, event, payload = []) {
-  const route = {event, payload, routes: []}
+function timeSince(startedAt) {
+  const [sec, nsec] = process.hrtime(startedAt)
+  return parseInt(sec * 1e3 + nsec / 1e6)
+}
+
+function trace(startedAt, routes, event, payload = []) {
+  const route = {event, payload, routes: [], time: timeSince(startedAt)}
   routes.push(route)
   return route.routes
 }
@@ -41,7 +47,9 @@ class AsyncPipeline {
     }
 
     if (this.transitions && !this.transitions[event]) throw new Error(`Event ${event} is not allowed entry point`)
-    this[$ee].emit(event, trace(this[$routes], event, payload), ...payload)
+
+    this[$startedAt] = process.hrtime();
+    this[$ee].emit(event, trace(this[$startedAt], this[$routes], event, payload), ...payload)
     return this
   }
 
@@ -60,7 +68,7 @@ class AsyncPipeline {
       this.debug('◀︎', event, payload)
 
       // skip
-      if (this[$ended] && !isInternal) return console.log(`✘ skipping ${event}`, ...payload)
+      if (this[$ended] && !isInternal) return this.debug(`✘ skipping ${event}`, ...payload)
 
       // let @-events handles fail unsafe
       if (isInternal) return setTimeout(fn, 0, ...payload)
@@ -72,7 +80,7 @@ class AsyncPipeline {
           emit : (nextEvent, ...payload) => {
             if (nextEvent.startsWith('@')) throw new Error('Event names starting with @ are reseved')
             if (this.transitions && !this.transitions[event].has(nextEvent)) throw new Error(`Not allowed to transition from "${event}" to "${nextEvent}"`)
-            setTimeout(() => this[$ee].emit(nextEvent, trace(routes, nextEvent, payload), ...payload), 0)
+            setTimeout(() => this[$ee].emit(nextEvent, trace(this[$startedAt], routes, nextEvent, payload), ...payload), 0)
           }
         }, ...payload)
       } catch (err) {
