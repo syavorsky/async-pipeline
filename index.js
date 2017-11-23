@@ -13,8 +13,20 @@ function trace(routes, event, payload = []) {
 }
 
 class AsyncPipeline {
-  constructor ({debug = noop} = {}) {
+  constructor ({
+    debug = noop,
+    transitions = {}
+  } = {}) {
     this.debug = debug
+
+    this.transitions = null
+    if (transitions) {
+      this.transitions = {}
+      for (const t in transitions) {
+        if (transitions.hasOwnProperty(t)) this.transitions[t] = new Set(transitions[t])
+      }
+    }
+
     this[$ee] = new EventEmitter()
     this[$routes] = []
     this[$ended] = false
@@ -28,6 +40,7 @@ class AsyncPipeline {
         `${this[$routes][0].name} : ${JSON.stringify(this[$routes][0].payload)}`)
     }
 
+    if (this.transitions && !this.transitions[event]) throw new Error(`Event ${event} is not allowed entry point`)
     this[$ee].emit(event, trace(this[$routes], event, payload), ...payload)
     return this
   }
@@ -56,9 +69,10 @@ class AsyncPipeline {
       try {
         fn.call({
           end  : this.end,
-          emit : (event, ...payload) => {
-            if (event.startsWith('@')) throw new Error('Event names starting with @ are reseved')
-            setTimeout(() => this[$ee].emit(event, trace(routes, event, payload), ...payload), 0)
+          emit : (nextEvent, ...payload) => {
+            if (nextEvent.startsWith('@')) throw new Error('Event names starting with @ are reseved')
+            if (this.transitions && !this.transitions[event].has(nextEvent)) throw new Error(`Not allowed to transition from "${event}" to "${nextEvent}"`)
+            setTimeout(() => this[$ee].emit(nextEvent, trace(routes, nextEvent, payload), ...payload), 0)
           }
         }, ...payload)
       } catch (err) {
@@ -70,11 +84,15 @@ class AsyncPipeline {
   }
 }
 
-new AsyncPipeline()
+new AsyncPipeline({
+  transitions: {
+    'start': ['stage-1:progress', 'stage-1:done'],
+    'stage-1:done': ['stage-2:done']
+  }
+})
   .on('@error', console.error.bind(console, 'ERROR:'))
   .on('@end', function (dump) {
-    console.log('END', dump)
-    this.emit('test', 123)
+    console.log('END', require('util').inspect(dump, {colors: true, depth: 5}))
   })
   .on('start', function (count) {
     let i = 0
