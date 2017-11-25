@@ -1,3 +1,5 @@
+'use strict'
+
 const {EventEmitter} = require('events')
 
 const noop = () => {}
@@ -20,6 +22,7 @@ function di ({
 
   return function AsyncPipeline (options = {}) {
 
+    // allow to be instantiated without `new`
     if (!(this instanceof AsyncPipeline)) return new AsyncPipeline(options)
 
     const {
@@ -28,6 +31,7 @@ function di ({
     } = options
 
     if (transitions !== null) {
+      // normalize transitions for lookups
       for (const t in transitions) {
         if (transitions.hasOwnProperty(t)) transitions[t] = new Set(transitions[t])
       }
@@ -40,28 +44,31 @@ function di ({
     let ended = false
     let startedAt
 
+    // private
     const end = err => {
       ended = true
       if (err) {
-        if (handlers['@error']) ee.emit('@error', null, err)
-        else  {
-          console.error('\n☠︎ Pipeline crashed, listen to "@error" to prevent throwing\n')
+        if (!handlers['@error']) {
+          console.error('\nPipeline crashed, listen to "@error" to prevent throwing\n')
           throw err
         }
+        ee.emit('@error', null, err, routes.slice())
       }
       ee.emit('@end', null, routes.slice())
     }
 
+    // private
     function trace(routes, event, payload = []) {
       const route = {event, payload, routes: [], time: timeSince(startedAt)}
       routes.push(route)
       return route.routes
     }
 
+    // public, bound to instance
     function start(event, ...payload) {
       if (routes[0]) {
         throw new PipelineError('Pipeline has already started with ' +
-          `${routes[0].name} : ${JSON.stringify(routes[0].payload)}`)
+          `"${routes[0].event}" (${JSON.stringify(routes[0].payload)})`)
       }
 
       if (transitions && !transitions[event]) throw new PipelineError(`Event "${event}" is not allowed entry point`)
@@ -72,8 +79,8 @@ function di ({
       return this
     }
 
+    // public, bound to instance
     function on (event, fn) {
-      if (ended) throw new PipelineError('Can not add handlers after pipeline closed')
       if (routes[0]) throw new PipelineError('Can not add handlers after pipeline started')
 
       // track events being handled
@@ -83,38 +90,47 @@ function di ({
         const isInternal = event[0] === '@'
         debug('◆', event, payload)
 
-        // skip
-        if (ended && !isInternal) return this.debug(`✘ Pipeline closed, skipping ${event}`, ...payload)
+        // internal events handlers should throw on error
+        if (isInternal) {
+          try {
+            return fn(...payload)
+          } catch (err) {
+            console.error(`\nPipeline crashed, error in "${event}" handler\n`)
+            throw err
+          }
+        }
 
-        // let @-events handles fail unsafe
-        // if (isInternal) return setTimeout(fn, 0, ...payload)
-
-        // all other handlers should fail safe with @error
+        // all other handlers should fail safly with @error
         try {
           fn.call({
             end,
             emit : (nextEvent, ...payload) => {
-              if (ended) throw new PipelineError(`Can not emit "${nextEvent}" after pipeline closed`)
+              if (ended && !isInternal) return debug(`✘ Pipeline closed, skipping ${event}`, ...payload)
               if (nextEvent.startsWith('@')) throw new PipelineError('Event names starting with @ are reseved')
               if (transitions && (
                 !transitions[event] || !transitions[event].has(nextEvent)
               )) throw new PipelineError(`Not allowed transition "${event}" → "${nextEvent}"`)
 
-              setTimeout(() => ee.emit(nextEvent, trace(routes, nextEvent, payload), ...payload), 0)
+              ee.emit(nextEvent, trace(routes, nextEvent, payload), ...payload)
             }
           }, ...payload)
         } catch (err) {
-          setTimeout(end, 0, err)
+          end(err)
         }
       })
 
       return this
     }
 
+    // expose public API
     this.start = start.bind(this)
     this.on = on.bind(this)
   }
 }
 
 module.exports = di()
-if (process.env.NODE_ENV === 'test') module.exports.di = di
+
+if (process.env.NODE_ENV === 'test') {
+  module.exports.di = di
+  module.exports.PipelineError = PipelineError
+}

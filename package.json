@@ -4,7 +4,7 @@
   "description": "EventEmiter-based pipeline with transition constraint and time tracking",
   "main": "index.js",
   "scripts": {
-    "test": "ava --verbose ./test/**/*.spec.js"
+    "test": "ava --verbose --no-cache ./test/**/*.spec.js"
   },
   "keywords": [
     "pipeline",
