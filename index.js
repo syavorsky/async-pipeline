@@ -1,11 +1,5 @@
 const {EventEmitter} = require('events')
 
-const $ee = Symbol()
-const $routes = Symbol()
-const $ended = Symbol()
-const $startedAt = Symbol()
-const $handlers = Symbol()
-
 const noop = () => {}
 
 function _timeSince(startedAt) {
@@ -24,73 +18,73 @@ function di ({
   timeSince = _timeSince,
 } = {}) {
 
-  function trace(startedAt, routes, event, payload = []) {
-    const route = {event, payload, routes: [], time: timeSince(startedAt)}
-    routes.push(route)
-    return route.routes
-  }
+  return function AsyncPipeline (options = {}) {
 
-  return class AsyncPipeline {
-    constructor ({
+    if (!(this instanceof AsyncPipeline)) return new AsyncPipeline(options)
+
+    const {
       debug = noop,
       transitions = null
-    } = {}) {
-      this.debug = debug
+    } = options
 
-      this.transitions = null
-      if (transitions) {
-        this.transitions = {}
-        for (const t in transitions) {
-          if (transitions.hasOwnProperty(t)) this.transitions[t] = new Set(transitions[t])
-        }
+    if (transitions !== null) {
+      for (const t in transitions) {
+        if (transitions.hasOwnProperty(t)) transitions[t] = new Set(transitions[t])
       }
-
-      this[$ee] = new EventEmitter()
-      this[$routes] = []
-      this[$ended] = false
-      this[$handlers] = {}
-
-      this.end = this.end.bind(this)
     }
 
-    start(event, ...payload) {
-      if (this[$routes][0]) {
-        throw new PipelineError('Pipeline has already started with ' +
-          `${this[$routes][0].name} : ${JSON.stringify(this[$routes][0].payload)}`)
-      }
+    const ee = new EventEmitter()
+    const routes = []
+    const handlers = {}
 
-      if (this.transitions && !this.transitions[event]) throw new PipelineError(`Event "${event}" is not allowed entry point`)
+    let ended = false
+    let startedAt
 
-      this[$startedAt] = process.hrtime();
-      this[$ee].emit(event, trace(this[$startedAt], this[$routes], event, payload), ...payload)
-      return this
-    }
-
-    end (err) {
-      this[$ended] = true
+    const end = err => {
+      ended = true
       if (err) {
-        if (this[$handlers]['@error']) this[$ee].emit('@error', null, err)
+        if (handlers['@error']) ee.emit('@error', null, err)
         else  {
           console.error('\n☠︎ Pipeline crashed, listen to "@error" to prevent throwing\n')
           throw err
         }
       }
-      this[$ee].emit('@end', null, this[$routes].slice())
+      ee.emit('@end', null, routes.slice())
     }
 
-    on (event, fn) {
-      if (this[$ended]) throw new PipelineError('Can not add handlers after pipeline closed')
-      if (this[$routes][0]) throw new PipelineError('Can not add handlers after pipeline started')
+    function trace(routes, event, payload = []) {
+      const route = {event, payload, routes: [], time: timeSince(startedAt)}
+      routes.push(route)
+      return route.routes
+    }
+
+    function start(event, ...payload) {
+      if (routes[0]) {
+        throw new PipelineError('Pipeline has already started with ' +
+          `${routes[0].name} : ${JSON.stringify(routes[0].payload)}`)
+      }
+
+      if (transitions && !transitions[event]) throw new PipelineError(`Event "${event}" is not allowed entry point`)
+
+      startedAt = process.hrtime();
+      ee.emit(event, trace(routes, event, payload), ...payload)
+
+      return this
+    }
+
+    function on (event, fn) {
+      if (ended) throw new PipelineError('Can not add handlers after pipeline closed')
+      if (routes[0]) throw new PipelineError('Can not add handlers after pipeline started')
 
       // track events being handled
-      this[$handlers][event] = (this[$handlers][event] || 0) + 1
+      handlers[event] = (handlers[event] || 0) + 1
 
-      this[$ee].on(event, (routes, ...payload) => {
+      ee.on(event, (routes, ...payload) => {
         const isInternal = event[0] === '@'
-        this.debug('◆', event, payload)
+        debug('◆', event, payload)
 
         // skip
-        if (this[$ended] && !isInternal) return this.debug(`✘ Pipeline closed, skipping ${event}`, ...payload)
+        if (ended && !isInternal) return this.debug(`✘ Pipeline closed, skipping ${event}`, ...payload)
 
         // let @-events handles fail unsafe
         // if (isInternal) return setTimeout(fn, 0, ...payload)
@@ -98,24 +92,27 @@ function di ({
         // all other handlers should fail safe with @error
         try {
           fn.call({
-            end  : this.end,
+            end,
             emit : (nextEvent, ...payload) => {
-              if (this[$ended]) throw new PipelineError(`Can not emit "${nextEvent}" after pipeline closed`)
+              if (ended) throw new PipelineError(`Can not emit "${nextEvent}" after pipeline closed`)
               if (nextEvent.startsWith('@')) throw new PipelineError('Event names starting with @ are reseved')
-              if (this.transitions && (
-                !this.transitions[event] || !this.transitions[event].has(nextEvent)
+              if (transitions && (
+                !transitions[event] || !transitions[event].has(nextEvent)
               )) throw new PipelineError(`Not allowed transition "${event}" → "${nextEvent}"`)
 
-              setTimeout(() => this[$ee].emit(nextEvent, trace(this[$startedAt], routes, nextEvent, payload), ...payload), 0)
+              setTimeout(() => ee.emit(nextEvent, trace(routes, nextEvent, payload), ...payload), 0)
             }
           }, ...payload)
         } catch (err) {
-          setTimeout(this.end, 0, err)
+          setTimeout(end, 0, err)
         }
       })
 
       return this
     }
+
+    this.start = start.bind(this)
+    this.on = on.bind(this)
   }
 }
 
