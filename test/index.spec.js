@@ -117,7 +117,7 @@ test('traces execution flow', t => {
   })
 })
 
-test.only('traces execution when fails', t => {
+test('traces execution when fails', t => {
   return new Promise(resolve => {
     const ImmediatePipeline = di({timeSince: () => 0})
     new ImmediatePipeline()

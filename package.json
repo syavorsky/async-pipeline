@@ -1,7 +1,7 @@
 {
   "name": "async-pipeline",
   "version": "0.0.1",
-  "description": "EventEmiter-based pipeline with transition constraint and time tracking",
+  "description": "Async pipeline with transition constraints and time tracking",
   "main": "index.js",
   "scripts": {
     "test": "ava --verbose --no-cache ./test/**/*.spec.js"
