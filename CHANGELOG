@@ -1,0 +1,5 @@
+0.1.0
+- context() API 
+
+0.0.1
+- PubSub-based pipeline with transition constraints, timing and logging
