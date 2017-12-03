@@ -25,6 +25,43 @@ test('goes through stages passing payload', t => {
   })
 })
 
+test('provides cross-stages context', t => {
+  return new Promise((resolve, reject) => {
+    new Pipeline()
+      .context({a: 1})
+      .on('s0', function () {
+        this.context({b: 2})
+        this.emit('s1')
+      }).on('s1', function () {
+        this.context({c: 3})
+        this.emit('s2')
+      }).on('s2', function () {
+        t.deepEqual(this.context(), {a:1, b:2, c:3})
+        this.end()
+      })
+      .on('@end', resolve)
+      .on('@error', reject)
+      .start('s0', 0)
+  })
+})
+
+test('context is available to internal event handlers', t => {
+  return new Promise(resolve => {
+    new Pipeline()
+      .context({a: 1})
+      .on('s0', () => { throw new Error('fail') })
+      .on('@error', function() {
+        this.context({b: 2})
+      })
+      .on('@end', function () {
+        this.context({c: 3})
+        t.deepEqual(this.context(), {a:1, b:2, c:3})
+        resolve()
+      })
+      .start('s0', 0)
+  })
+})
+
 test('throws on start if transition is not alowed', t => {
   const err = t.throws(() => {
     new Pipeline({

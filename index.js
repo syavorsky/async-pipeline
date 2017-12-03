@@ -40,12 +40,13 @@ function di ({
     const ee = new EventEmitter()
     const routes = []
     const handlers = {}
+    const contextData = {}
 
     let ended = false
     let startedAt
 
     // private
-    const end = err => {
+    function end (err) {
       ended = true
       if (err) {
         if (!handlers['@error']) {
@@ -62,6 +63,13 @@ function di ({
       const route = {event, payload, routes: [], time: timeSince(startedAt)}
       routes.push(route)
       return route.routes
+    }
+
+    // public, bound to instance
+    function context(data = null) {
+      if (data === null) return Object.assign({}, contextData)
+      Object.assign(contextData, data)
+      return this
     }
 
     // public, bound to instance
@@ -88,12 +96,12 @@ function di ({
 
       ee.on(event, (routes, ...payload) => {
         const isInternal = event[0] === '@'
-        debug('◆', event, payload)
+        debug('<', event, '>', payload)
 
-        // internal events handlers should throw on error
+        // internal event handlers should throw on error
         if (isInternal) {
           try {
-            return fn(...payload)
+            return fn.call({context},...payload)
           } catch (err) {
             console.error(`\nPipeline crashed, error in "${event}" handler\n`)
             throw err
@@ -104,7 +112,8 @@ function di ({
         try {
           fn.call({
             end,
-            emit : (nextEvent, ...payload) => {
+            context,
+            emit  : (nextEvent, ...payload) => {
               if (ended && !isInternal) return debug(`✘ Pipeline closed, skipping ${event}`, ...payload)
               if (nextEvent.startsWith('@')) throw new PipelineError('Event names starting with @ are reseved')
               if (transitions && (
@@ -125,6 +134,7 @@ function di ({
     // expose public API
     this.start = start.bind(this)
     this.on = on.bind(this)
+    this.context = context.bind(this)
   }
 }
 
