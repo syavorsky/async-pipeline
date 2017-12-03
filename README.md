@@ -110,18 +110,26 @@ Call `new Pipeline(options)` or just `Pipeline(options)` to get a pipeline insta
 }
 ```
 
-Internal events and their payloads:
+### Pipeline methods
+
+- `this.start('event', ...payload)` - start the flow with event `event` and optional payload. This will throw if `options.constraints` is set and has no `event` key
+
+- `this.context(dataObject)` - defines data object available to all handlers through `this.context()`
+
+### Internal events and their payloads
 
 - `@end (trace)` - fired once any handler calls `this.end()`. Also automatically triggered on unexpected errors
 - `@error (error, trace)` - fired if any handler has thrown or explicitly called `this.end(error)`. This will cause an uncaught exception bubbling to the `process` level if no handler registered
 
-Each handler except ones for internal events has access to following methods exposed though call context. Keep in mind that handlers should be defined as `function() {}`, arrow functions would forcefully override the context
+### Handler context methods
 
-- `this.start('event', ...payload)` - start the flow with event `event` and optional payload. This will throw if `options.constraints` is set and has no `event` key
+Each handler except ones for internal events has access to following methods exposed though call context. Keep in mind that handlers should be defined as `function() {}`, arrow functions would forcefully override the context
 
 - `this.end([error])` - end the flow and void all eventual events. If `error` passed that it's considered an emergency shutdown. In either case if will end up triggering `@end` event
 
 - `this.emit('event', ...payload)` - cast an event with arbitrary payload. This will throw if emitted event is violating `options.constraints`
+
+- `this.context([dataObject])` - getter/setter for context data kept shared for all handler. This should be used wisely though to keep handlers uncoupled
 
 ## Error handling
 
