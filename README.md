@@ -4,6 +4,10 @@ async-pipeline allows you to build a complex conditional flow from loosely coupl
 
 [![Build Status](https://travis-ci.org/yavorskiy/async-pipeline.svg?branch=master)](https://travis-ci.org/yavorskiy/async-pipeline)
 
+```
+npm install async-pipeline
+```
+
 Imagine you have set of processing operations that might be applied in different order based on input and intermediate results.
 
 ![Processing graph](https://cdn.rawgit.com/yavorskiy/async-pipeline/04a50bbe/docs/graph.svg)
