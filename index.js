@@ -27,7 +27,8 @@ function di ({
 
     const {
       debug = noop,
-      transitions = null
+      transitions = null,
+      contextAPI = true
     } = options
 
     if (transitions !== null) {
@@ -101,7 +102,7 @@ function di ({
         // internal event handlers should throw on error
         if (isInternal) {
           try {
-            return fn.call({context},...payload)
+            return contextAPI ? fn.call({context},...payload) : fn({context},...payload)
           } catch (err) {
             console.error(`\nPipeline crashed, error in "${event}" handler\n`)
             throw err
@@ -110,7 +111,7 @@ function di ({
 
         // all other handlers should fail safly with @error
         try {
-          fn.call({
+          const api = {
             end,
             context,
             emit  : (nextEvent, ...payload) => {
@@ -122,7 +123,8 @@ function di ({
 
               ee.emit(nextEvent, trace(routes, nextEvent, payload), ...payload)
             }
-          }, ...payload)
+          }
+          return contextAPI ? fn.call(api, ...payload) : fn(api, ...payload)
         } catch (err) {
           end(err)
         }

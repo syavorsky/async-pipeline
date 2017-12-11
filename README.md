@@ -101,6 +101,7 @@ END: [ { event: 'start',
 Call `new Pipeline(options)` or just `Pipeline(options)` to get a pipeline instance. Where `options` are:
 
 - `debug` - optional function to print internal logs, easiest way to get debugging output is to pass `{debug: console.log}`
+- `contextAPI` – `true` by default, expose API controls to the handlers through `this`, otherwise pass as a first argument
 - `transitions` - optional mapping defining allowed transitions and entry points. Example:
 
 ```js

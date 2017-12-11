@@ -258,3 +258,68 @@ test('throws to the top if failed in @end handler', t => {
       })
   })
 })
+
+test('handlers with explicit call context', t => {
+  return new Promise((resolve, reject) => {
+    new Pipeline({contextAPI: false})
+      .on('s0', function (api, ...args) {
+        t.is(this, 42)
+        t.deepEqual(args, [0])
+        t.deepEqual(Object.keys(api), ['end', 'context', 'emit'])
+        api.emit('s1', 1)
+      }.bind(42))
+      .on('s1', (api, ...args) => {
+        t.deepEqual(args, [1])
+        api.end()
+      })
+      .on('@end', (api, ...args) => {
+        t.is(args.length, 1)
+        t.deepEqual(Object.keys(api), ['context'])
+        resolve()
+      })
+      .on('@error', reject)
+      .start('s0', 0)
+  })
+})
+
+test('handlers with implicit call context', t => {
+  return new Promise((resolve, reject) => {
+    new Pipeline()
+      .on('s0', function (...args) {
+        t.deepEqual(args, [0])
+        t.deepEqual(Object.keys(this), ['end', 'context', 'emit'])
+        this.emit('s1', 1)
+      })
+      .on('s1', function (...args) {
+        t.deepEqual(args, [1])
+        this.end()
+      })
+      .on('@end', function (...args) {
+        t.is(args.length, 1) // [trace]
+        t.deepEqual(Object.keys(this), ['context'])
+        resolve()
+      })
+      .on('@error', reject)
+      .start('s0', 0)
+  })
+})
+
+test('errors with explicit call context', t => {
+  return new Promise(resolve => {
+    new Pipeline({contextAPI: false})
+      .on('s0', () => { throw new Error('ooops') })
+      .on('@error', (api, ...args) => {
+        t.deepEqual(Object.keys(api), ['context'])
+        t.is(args.length, 2) // [err, trace]
+        t.is(args[0].message, 'ooops')
+        t.deepEqual(args[1], [{
+          event   : 's0',
+          payload : [0],
+          time    : 0,
+          routes  : []
+        }])
+        resolve()
+      })
+      .start('s0', 0)
+  })
+})
