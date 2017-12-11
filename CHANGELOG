@@ -1,5 +1,8 @@
+0.2.0
+- implicit/explicit control API via `options.contextAPI`
+
 0.1.0
-- context() API 
+- context() API
 
 0.0.1
 - PubSub-based pipeline with transition constraints, timing and logging
