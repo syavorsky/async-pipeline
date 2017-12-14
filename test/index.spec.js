@@ -323,3 +323,11 @@ test('errors with explicit call context', t => {
       .start('s0', 0)
   })
 })
+
+test('throws on unknown event subscription', t => {
+  const err = t.throws(() => {
+    new Pipeline({transitions: {s0: ['s1']}})
+      .on('s2', () => {})
+  })
+  t.is(err.message, 'Subscribing to event "s2" not listed in transitions')
+})

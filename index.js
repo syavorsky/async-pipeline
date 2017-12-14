@@ -31,10 +31,16 @@ function di ({
       contextAPI = true
     } = options
 
+    const knownEvents = new Set()
+      .add('@error')
+      .add('@end')
+
     if (transitions !== null) {
       // normalize transitions for lookups
-      for (const t in transitions) {
-        if (transitions.hasOwnProperty(t)) transitions[t] = new Set(transitions[t])
+      for (const from in transitions) {
+        if (transitions.hasOwnProperty(from)) transitions[from] = new Set(transitions[from])
+        knownEvents.add(from)
+        for (const to of transitions[from]) knownEvents.add(to)
       }
     }
 
@@ -91,6 +97,7 @@ function di ({
     // public, bound to instance
     function on (event, fn) {
       if (routes[0]) throw new PipelineError('Can not add handlers after pipeline started')
+      if (transitions && !knownEvents.has(event)) throw new PipelineError(`Subscribing to event "${event}" not listed in transitions`)
 
       // track events being handled
       handlers[event] = (handlers[event] || 0) + 1
