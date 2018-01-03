@@ -1,3 +1,6 @@
+0.2.2
+- include internal events in the dump
+
 0.2.1
 - fail when subscribing to unknown events
 
