@@ -144,7 +144,9 @@ test('traces execution flow', t => {
             {event: 's0:progress', payload: [.2], time: 0, routes: []},
             {event: 's0:progress', payload: [.3], time: 0, routes: []},
             {event: 's1',          payload: [1],  time: 0, routes: [
-              {event: 's2', payload: [2], time: 0, routes: []}
+              {event: 's2', payload: [2], time: 0, routes: [
+                {event: '@end', payload: [], time: 0, routes: []}
+              ]}
             ]}
           ]
         }])
@@ -157,6 +159,7 @@ test('traces execution flow', t => {
 test('traces execution when fails', t => {
   return new Promise(resolve => {
     const ImmediatePipeline = di({timeSince: () => 0})
+    const failure = new Error('ooops')
     new ImmediatePipeline()
       .on('s0', function (i) {
         this.emit('s0:progress', 0.1)
@@ -165,7 +168,7 @@ test('traces execution when fails', t => {
         this.emit('s1', i + 1)
       })
       .on('s1', function (i) { this.emit('s2', i + 1) })
-      .on('s2', function (i) { throw new Error('ooops') })
+      .on('s2', function (i) { throw failure })
       .on('@error', (err, trace) => {
         t.deepEqual(trace, [{
           event   : 's0',
@@ -176,7 +179,9 @@ test('traces execution when fails', t => {
             {event: 's0:progress', payload: [.2], time: 0, routes: []},
             {event: 's0:progress', payload: [.3], time: 0, routes: []},
             {event: 's1',          payload: [1],  time: 0, routes: [
-              {event: 's2', payload: [2], time: 0, routes: []}
+              {event: 's2', payload: [2], time: 0, routes: [
+                {event: '@error', payload: [failure], time: 0, routes: []}
+              ]}
             ]}
           ]
         }])
@@ -265,7 +270,7 @@ test('handlers with explicit call context', t => {
       .on('s0', function (api, ...args) {
         t.is(this, 42)
         t.deepEqual(args, [0])
-        t.deepEqual(Object.keys(api), ['end', 'context', 'emit'])
+        t.deepEqual(Object.keys(api), ['context', 'end', 'emit'])
         api.emit('s1', 1)
       }.bind(42))
       .on('s1', (api, ...args) => {
@@ -287,7 +292,7 @@ test('handlers with implicit call context', t => {
     new Pipeline()
       .on('s0', function (...args) {
         t.deepEqual(args, [0])
-        t.deepEqual(Object.keys(this), ['end', 'context', 'emit'])
+        t.deepEqual(Object.keys(this), ['context', 'end', 'emit'])
         this.emit('s1', 1)
       })
       .on('s1', function (...args) {
@@ -305,9 +310,12 @@ test('handlers with implicit call context', t => {
 })
 
 test('errors with explicit call context', t => {
+  const ImmediatePipeline = di({timeSince: () => 0})
+
   return new Promise(resolve => {
-    new Pipeline({contextAPI: false})
-      .on('s0', () => { throw new Error('ooops') })
+    const failure = new Error('ooops')
+    new ImmediatePipeline({contextAPI: false})
+      .on('s0', () => { throw failure })
       .on('@error', (api, ...args) => {
         t.deepEqual(Object.keys(api), ['context'])
         t.is(args.length, 2) // [err, trace]
@@ -316,7 +324,9 @@ test('errors with explicit call context', t => {
           event   : 's0',
           payload : [0],
           time    : 0,
-          routes  : []
+          routes  : [
+            {event: '@error', payload: [failure], time: 0, routes: []}
+          ]
         }])
         resolve()
       })
