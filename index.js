@@ -53,16 +53,21 @@ function di ({
     let startedAt
 
     // private
-    function end (err) {
+    function dump () {
+      return routes.slice()
+    }
+
+    // private
+    function end (err, routes) {
       ended = true
       if (err) {
         if (!handlers['@error']) {
           console.error('\nPipeline crashed, listen to "@error" to prevent throwing\n')
           throw err
         }
-        ee.emit('@error', null, err, routes.slice())
+        ee.emit('@error', trace(routes, '@error', [err]), err, dump())
       }
-      ee.emit('@end', null, routes.slice())
+      ee.emit('@end', trace(routes, '@end', []), dump())
     }
 
     // private
@@ -119,9 +124,9 @@ function di ({
         // all other handlers should fail safly with @error
         try {
           const api = {
-            end,
             context,
-            emit  : (nextEvent, ...payload) => {
+            end: err => end(err, routes),
+            emit: (nextEvent, ...payload) => {
               if (ended && !isInternal) return debug(`✘ Pipeline closed, skipping ${event}`, ...payload)
               if (nextEvent.startsWith('@')) throw new PipelineError('Event names starting with @ are reseved')
               if (transitions && (
@@ -133,7 +138,7 @@ function di ({
           }
           return contextAPI ? fn.call(api, ...payload) : fn(api, ...payload)
         } catch (err) {
-          end(err)
+          end(err, routes)
         }
       })
 
