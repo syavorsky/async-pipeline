@@ -125,7 +125,10 @@ function di ({
         try {
           const api = {
             context,
-            end: err => end(err, routes),
+            end: err => {
+              end(err, routes)
+              return this
+            },
             emit: (nextEvent, ...payload) => {
               if (ended && !isInternal) return debug(`✘ Pipeline closed, skipping ${event}`, ...payload)
               if (nextEvent.startsWith('@')) throw new PipelineError('Event names starting with @ are reseved')
@@ -134,6 +137,7 @@ function di ({
               )) throw new PipelineError(`Not allowed transition "${event}" → "${nextEvent}"`)
 
               ee.emit(nextEvent, trace(routes, nextEvent, payload), ...payload)
+              return this
             }
           }
           return contextAPI ? fn.call(api, ...payload) : fn(api, ...payload)
