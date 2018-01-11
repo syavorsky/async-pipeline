@@ -127,7 +127,7 @@ function di ({
             context,
             end: err => {
               end(err, routes)
-              return this
+              return api
             },
             emit: (nextEvent, ...payload) => {
               if (ended && !isInternal) return debug(`✘ Pipeline closed, skipping ${event}`, ...payload)
@@ -137,7 +137,7 @@ function di ({
               )) throw new PipelineError(`Not allowed transition "${event}" → "${nextEvent}"`)
 
               ee.emit(nextEvent, trace(routes, nextEvent, payload), ...payload)
-              return this
+              return api
             }
           }
           return contextAPI ? fn.call(api, ...payload) : fn(api, ...payload)

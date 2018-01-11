@@ -341,3 +341,31 @@ test('throws on unknown event subscription', t => {
   })
   t.is(err.message, 'Subscribing to event "s2" not listed in transitions')
 })
+
+test('API methods are chainable with implicit context', t => {
+  return new Promise(resolve => {
+    new Pipeline()
+      .on('s0', function () {
+        t.is(this.emit('s1'), this);
+      })
+      .on('s1', function () {
+        t.is(this.end(), this);
+      })
+      .on('@end', resolve)
+      .start('s0');
+  });
+});
+
+test('API methods are chainable with explicit context', t => {
+  return new Promise(resolve => {
+    new Pipeline({contextAPI: false})
+      .on('s0', function (api) {
+        t.is(api.emit('s1'), api);
+      })
+      .on('s1', function (api) {
+        t.is(api.end(), api);
+      })
+      .on('@end', resolve)
+      .start('s0');
+  });
+});
