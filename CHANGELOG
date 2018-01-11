@@ -1,3 +1,6 @@
+0.2.3
+- make pipeline API calls chainable (return this)
+
 0.2.2
 - include internal events in the dump
 

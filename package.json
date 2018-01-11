@@ -1,6 +1,6 @@
 {
   "name": "async-pipeline",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Async pipeline with transition constraints and time tracking",
   "main": "index.js",
   "scripts": {
