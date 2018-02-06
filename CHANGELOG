@@ -1,3 +1,7 @@
+0.3.0
+- provide pipeline.safe(handler) decorator
+- prevent subsequent `end()` calls 
+
 0.2.4
 - fix pipeline API methods chaining
 

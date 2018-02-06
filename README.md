@@ -132,6 +132,15 @@ Each handler except ones for internal events has access to following methods exp
 
 - `this.context([dataObject])` - getter/setter for context data kept shared for all handler. This should be used wisely though to keep handlers uncoupled
 
+- `this.safe(fn)` - decorator for async calls that may throw within handler. Following would throw to the top level unless wrapped into `safe()`:  
+
+```js
+  pipeline.on('event', () => {
+    const later = this.safe(() => { throw new Error() })
+    setTimeout(later, 0)
+  })
+```
+
 ## Error handling
 
 Errors thrown from within event handlers will be caught and routed as `@error` event payload. However those would bubble up to the top if no handler defined
