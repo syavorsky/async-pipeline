@@ -27,6 +27,7 @@ function di ({
 
     const {
       debug = noop,
+      warn = debug,
       transitions = null,
       contextAPI = true
     } = options
@@ -59,6 +60,7 @@ function di ({
 
     // private
     function end (err, routes) {
+      if (ended) return warn(`Skipping repeating end() call:`, err || 'no error')
       ended = true
       if (err) {
         if (!handlers['@error']) {
@@ -130,7 +132,7 @@ function di ({
               return api
             },
             emit: (nextEvent, ...payload) => {
-              if (ended && !isInternal) return debug(`✘ Pipeline closed, skipping ${event}`, ...payload)
+              if (ended && !isInternal) return warn('Skipping emit() call after pipeline ended:', nextEvent, ...payload)
               if (nextEvent.startsWith('@')) throw new PipelineError('Event names starting with @ are reseved')
               if (transitions && (
                 !transitions[event] || !transitions[event].has(nextEvent)
@@ -138,6 +140,9 @@ function di ({
 
               ee.emit(nextEvent, trace(routes, nextEvent, payload), ...payload)
               return api
+            },
+            safe: fn => (...args) => {
+              try { fn(...args) } catch (err) { end(err, routes) }
             }
           }
           return contextAPI ? fn.call(api, ...payload) : fn(api, ...payload)

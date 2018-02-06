@@ -270,7 +270,7 @@ test('handlers with explicit call context', t => {
       .on('s0', function (api, ...args) {
         t.is(this, 42)
         t.deepEqual(args, [0])
-        t.deepEqual(Object.keys(api), ['context', 'end', 'emit'])
+        t.deepEqual(Object.keys(api), ['context', 'end', 'emit', 'safe'])
         api.emit('s1', 1)
       }.bind(42))
       .on('s1', (api, ...args) => {
@@ -292,7 +292,7 @@ test('handlers with implicit call context', t => {
     new Pipeline()
       .on('s0', function (...args) {
         t.deepEqual(args, [0])
-        t.deepEqual(Object.keys(this), ['context', 'end', 'emit'])
+        t.deepEqual(Object.keys(this), ['context', 'end', 'emit', 'safe'])
         this.emit('s1', 1)
       })
       .on('s1', function (...args) {
@@ -369,3 +369,166 @@ test('API methods are chainable with explicit context', t => {
       .start('s0');
   });
 });
+
+test('voids repeating end() calls', t => {
+  let errCalls = 0
+  let endCalls = 0
+
+  return new Promise(resolve => {
+    new Pipeline()
+      .on('s0', function () {
+        this.end(new Error('err1'))
+        this.end(new Error('err2'))
+        setTimeout(resolve, 10)
+      })
+      .on('@error', function () { errCalls++ })
+      .on('@end', function () { endCalls++ })
+      .start('s0')
+  }).then(() => {
+    t.is(errCalls, 1)
+    t.is(endCalls, 1)
+  })
+})
+
+test('voids repeating end() calls with explicit API', t => {
+  let errCalls = 0
+  let endCalls = 0
+
+  return new Promise(resolve => {
+    new Pipeline({contextAPI: false})
+      .on('s0', pipeline => {
+        pipeline.end(new Error('err1'))
+        pipeline.end(new Error('err2'))
+        setTimeout(resolve, 10)
+      })
+      .on('@error', pipeline => { errCalls++ })
+      .on('@end', pipeline => { endCalls++ })
+      .start('s0')
+  }).then(() => {
+    t.is(errCalls, 1)
+    t.is(endCalls, 1)
+  })
+})
+
+test('warns about emit() after end', t => {
+  return new Promise(resolve => {
+    new Pipeline({
+      warn: (...args) => t.deepEqual(args, ['Skipping emit() call after pipeline ended:', 'a', 1])
+    })
+      .on('s0', function() {
+        this.end()
+        this.emit('a', 1)
+      })
+      .on('@end', resolve)
+      .start('s0')
+  })
+})
+
+test('warns about repeating end() call', t => {
+  return new Promise(resolve => {
+    new Pipeline({
+      warn: (...args) => t.deepEqual(args, ['Skipping repeating end() call:', 'no error'])
+    })
+      .on('s0', function() {
+        this.end()
+        this.end()
+        setTimeout(resolve, 10)
+      })
+      .start('s0')
+  })
+})
+
+test('warns about repeating end() call with explicit API', t => {
+  return new Promise(resolve => {
+    new Pipeline({
+      contextAPI: false,
+      warn: (...args) => t.deepEqual(args, ['Skipping repeating end() call:', 'no error'])
+    })
+      .on('s0', pipeline => {
+        pipeline.end()
+        pipeline.end()
+        setTimeout(resolve, 10)
+      })
+      .start('s0')
+  })
+})
+
+test('warns about repeating end(err) call', t => {
+  const err = new Error()
+  return new Promise(resolve => {
+    new Pipeline({
+      warn: (...args) => t.deepEqual(args, ['Skipping repeating end() call:', err])
+    })
+      .on('s0', function() {
+        this.end()
+        this.end(err)
+        setTimeout(resolve, 10)
+      })
+      .start('s0')
+  })
+})
+
+test('warns about repeating end(err) call with explicit API', t => {
+  const err = new Error()
+  return new Promise(resolve => {
+    new Pipeline({
+      contextAPI: false,
+      warn: (...args) => t.deepEqual(args, ['Skipping repeating end() call:', err])
+    })
+      .on('s0', pipeline => {
+        pipeline.end()
+        pipeline.end(err)
+        setTimeout(resolve, 10)
+      })
+      .start('s0')
+  })
+})
+
+test('catches errors by pipeline.safe()', t => {
+  const theErr = new Error('failed')
+  return new Promise(resolve => {
+    new Pipeline()
+      .on('s0', function() {
+        setTimeout(this.safe(() => { throw theErr }), 1)
+      })
+      .on('@error', err => {
+        t.is(err, theErr)
+        resolve()
+      })
+      .start('s0')
+  })
+})
+
+test('catches errors by pipeline.safe() with explicit API', t => {
+  const theErr = new Error('failed')
+  return new Promise(resolve => {
+    new Pipeline({contextAPI: false})
+      .on('s0', pipeline => {
+        setTimeout(pipeline.safe(() => { throw theErr }), 1)
+      })
+      .on('@error', (pipeline, err) => {
+        t.is(err, theErr)
+        resolve()
+      })
+      .start('s0')
+  })
+})
+
+test('uses debug() as fallback to warn()', t => {
+  const theErr = new Error('failed')
+  const err = new Error()
+  return new Promise(resolve => {
+    new Pipeline({
+      debug: (...args) => {
+        if (args[0] === '<' && args[2] === '>') return //  this is debug < event > call
+        t.deepEqual(args, ['Skipping repeating end() call:', err])
+      }
+    })
+      .on('s0', function() {
+        this.end()
+        this.end(err)
+        setTimeout(resolve, 10)
+      })
+      .start('s0')
+  })
+})
