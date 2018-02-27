@@ -27,7 +27,7 @@ function di ({
 
     const {
       debug = noop,
-      warn = debug,
+      warn = (...args) => debug('warning', ...args),
       transitions = null,
       contextAPI = true
     } = options
@@ -35,6 +35,7 @@ function di ({
     const knownEvents = new Set()
       .add('@error')
       .add('@end')
+      .add('@all')
 
     if (transitions !== null) {
       // normalize transitions for lookups
@@ -62,14 +63,21 @@ function di ({
     function end (err, routes) {
       if (ended) return warn(`Skipping repeating end() call:`, err || 'no error')
       ended = true
+
+      const dumped = dump()
+
       if (err) {
         if (!handlers['@error']) {
           console.error('\nPipeline crashed, listen to "@error" to prevent throwing\n')
           throw err
         }
-        ee.emit('@error', trace(routes, '@error', [err]), err, dump())
+        const traced = trace(routes, '@error', [err])
+        ee.emit('@all', traced, '@error', err, dumped)
+        ee.emit('@error', traced, err, dumped)
       }
-      ee.emit('@end', trace(routes, '@end', []), dump())
+      const traced = trace(routes, '@end', [])
+      ee.emit('@all', traced, '@end', dumped)
+      ee.emit('@end', traced, dumped)
     }
 
     // private
@@ -88,6 +96,7 @@ function di ({
 
     // public, bound to instance
     function start(event, ...payload) {
+      debugger
       if (routes[0]) {
         throw new PipelineError('Pipeline has already started with ' +
           `"${routes[0].event}" (${JSON.stringify(routes[0].payload)})`)
@@ -96,7 +105,10 @@ function di ({
       if (transitions && !transitions[event]) throw new PipelineError(`Event "${event}" is not allowed entry point`)
 
       startedAt = process.hrtime();
-      ee.emit(event, trace(routes, event, payload), ...payload)
+
+      const traced = trace(routes, event, payload)
+      ee.emit('@all', traced, event, ...payload)
+      ee.emit(event, traced, ...payload)
 
       return this
     }
@@ -111,7 +123,7 @@ function di ({
 
       ee.on(event, (routes, ...payload) => {
         const isInternal = event[0] === '@'
-        debug('<', event, '>', payload)
+        debug('event', event, payload)
 
         // internal event handlers should throw on error
         if (isInternal) {
@@ -138,7 +150,9 @@ function di ({
                 !transitions[event] || !transitions[event].has(nextEvent)
               )) throw new PipelineError(`Not allowed transition "${event}" → "${nextEvent}"`)
 
-              ee.emit(nextEvent, trace(routes, nextEvent, payload), ...payload)
+              const traced = trace(routes, nextEvent, payload)
+              ee.emit('@all', traced, nextEvent, ...payload)
+              ee.emit(nextEvent, traced, ...payload)
               return api
             },
             safe: fn => (...args) => {

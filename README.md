@@ -119,6 +119,7 @@ Call `new Pipeline(options)` or just `Pipeline(options)` to get a pipeline insta
 
 ### Internal events and their payloads
 
+- `@all (event, ...payload)` - catches all events, emitted right before normal event. Useful mainly for testing
 - `@end (trace)` - fired once any handler calls `this.end()`. Also automatically triggered on unexpected errors
 - `@error (error, trace)` - fired if any handler has thrown or explicitly called `this.end(error)`. This will cause an uncaught exception bubbling to the `process` level if no handler registered
 

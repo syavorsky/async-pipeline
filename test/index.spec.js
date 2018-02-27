@@ -519,8 +519,8 @@ test('uses debug() as fallback to warn()', t => {
   const err = new Error()
   return new Promise(resolve => {
     new Pipeline({
-      debug: (...args) => {
-        if (args[0] === '<' && args[2] === '>') return //  this is debug < event > call
+      debug: (subject, ...args) => {
+        if (subject !== 'warning') return
         t.deepEqual(args, ['Skipping repeating end() call:', err])
       }
     })
@@ -531,4 +531,66 @@ test('uses debug() as fallback to warn()', t => {
       })
       .start('s0')
   })
+})
+
+test('catches all events via @all', t => {
+  const calls = []
+  return new Promise(resolve => {
+    new Pipeline()
+      .on('s0', function() { this.emit('s1', 1) })
+      .on('s1', function() { this.end() })
+      .on('@all', function(...args) { calls.push(args) })
+      .on('@end', function(dump) {
+        t.deepEqual(calls, [['s0', 0], ['s1', 1], ['@end', dump]])
+        resolve()
+      })
+      .start('s0', 0)
+    })
+})
+
+test('catches @error via @all', t => {
+  const calls = []
+  const error = new Error('failed')
+  return new Promise(resolve => {
+    new Pipeline()
+      .on('s0', function() { throw error })
+      .on('@all', function(...args) { calls.push(args) })
+      .on('@error', () => {})
+      .on('@end', function(dump) {
+        t.deepEqual(calls, [['s0', 0], ['@error', error, dump], ['@end', dump]])
+        resolve()
+      })
+      .start('s0', 0)
+    })
+})
+
+test('catches all events via @all with explicit API', t => {
+  const calls = []
+  return new Promise(resolve => {
+    new Pipeline({contextAPI: false})
+      .on('s0', api => { api.emit('s1', 1) })
+      .on('s1', api => { api.end() })
+      .on('@all', (api, ...args) => { calls.push(args) })
+      .on('@end', (api, dump) => {
+        t.deepEqual(calls, [['s0', 0], ['s1', 1], ['@end', dump]])
+        resolve()
+      })
+      .start('s0', 0)
+    })
+})
+
+test('catches @error via @all with explicit API', t => {
+  const calls = []
+  const error = new Error('failed')
+  return new Promise(resolve => {
+    new Pipeline({contextAPI: false})
+      .on('s0', api => { throw error })
+      .on('@all', (api, ...args) => { calls.push(args) })
+      .on('@error', () => {})
+      .on('@end', (api, dump) => {
+        t.deepEqual(calls, [['s0', 0], ['@error', error, dump], ['@end', dump]])
+        resolve()
+      })
+      .start('s0', 0)
+    })
 })
