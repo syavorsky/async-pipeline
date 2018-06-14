@@ -1,3 +1,6 @@
+0.3.2
+- make EventEmitter injectable
+
 0.3.1
 - introduced @all event
 - added subject argument to debug function
