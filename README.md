@@ -147,3 +147,11 @@ Each handler except ones for internal events has access to following methods exp
 Errors thrown from within event handlers will be caught and routed as `@error` event payload. However those would bubble up to the top if no handler defined
 
 Errors thrown from within internal events (`@end`, `@error`) are always bypassing `@error` and propagate to the top to avoid recursive failures. Same for the failures in `start()` and `on()` calls
+
+## Alternative EventEmitter
+
+If you Node's `EventEmitter` doesn't work for you for whatever reason then you can inject the alternative
+
+```js
+Pipeline = Pipeline.di({EventEmitter: EventEmitterClass})
+```

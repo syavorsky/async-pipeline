@@ -1,7 +1,5 @@
 'use strict'
 
-const {EventEmitter} = require('events')
-
 const noop = () => {}
 
 function _timeSince(startedAt) {
@@ -18,6 +16,7 @@ class PipelineError extends Error {
 
 function di ({
   timeSince = _timeSince,
+  EventEmitter = require('events').EventEmitter
 } = {}) {
 
   return function AsyncPipeline (options = {}) {
@@ -176,8 +175,8 @@ function di ({
 }
 
 module.exports = di()
+module.exports.di = di
 
 if (process.env.NODE_ENV === 'test') {
-  module.exports.di = di
   module.exports.PipelineError = PipelineError
 }
