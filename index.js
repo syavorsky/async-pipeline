@@ -95,7 +95,6 @@ function di ({
 
     // public, bound to instance
     function start(event, ...payload) {
-      debugger
       if (routes[0]) {
         throw new PipelineError('Pipeline has already started with ' +
           `"${routes[0].event}" (${JSON.stringify(routes[0].payload)})`)
